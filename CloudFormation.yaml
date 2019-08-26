@@ -1,0 +1,52 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Deploys a static website
+Parameters:
+  RootDomainName:
+    Description: Domain name for your website (example.com)
+    Type: String
+Mappings:
+  RegionMap:
+    us-west-2:
+      HostedZoneId: Z3BJ6K6RIION7M
+      WebsiteEndpoint: s3-website-us-west-2.amazonaws.com
+Resources:
+  RootDns:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      AliasTarget:
+        DNSName: !FindInMap [RegionMap, !Ref "AWS::Region", WebsiteEndpoint]
+        HostedZoneId: !FindInMap [RegionMap, !Ref "AWS::Region", HostedZoneId]
+      HostedZoneName: !Sub
+        - ${domain}.
+        - domain: !Ref RootDomainName
+      Name: !Ref RootDomainName
+      Type: A
+  RootStorage:
+    Type: AWS::S3::Bucket
+    Properties:
+      AccessControl: PublicRead
+      BucketName: !Ref RootDomainName
+      WebsiteConfiguration:
+        ErrorDocument: 404.html
+        IndexDocument: index.html
+  WwwDns:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      AliasTarget:
+        DNSName: !FindInMap [RegionMap, !Ref "AWS::Region", WebsiteEndpoint]
+        HostedZoneId: !FindInMap [RegionMap, !Ref "AWS::Region", HostedZoneId]
+      HostedZoneName: !Sub
+        - ${domain}.
+        - domain: !Ref RootDomainName
+      Name: !Ref WwwStorage
+      Type: A
+  WwwStorage:
+    Type: AWS::S3::Bucket
+    Properties:
+      AccessControl: BucketOwnerFullControl
+      BucketName: !Sub
+        - www.${domain}
+        - domain: !Ref RootDomainName
+      WebsiteConfiguration:
+        RedirectAllRequestsTo:
+          HostName: !Ref RootStorage
