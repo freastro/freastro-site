@@ -10,17 +10,56 @@ Mappings:
       HostedZoneId: Z3BJ6K6RIION7M
       WebsiteEndpoint: s3-website-us-west-2.amazonaws.com
 Resources:
-  RootDns:
-    Type: AWS::Route53::RecordSet
+  Certificate:
+    Type: AWS::CertificateManager::Certificate
     Properties:
-      AliasTarget:
-        DNSName: !FindInMap [RegionMap, !Ref "AWS::Region", WebsiteEndpoint]
-        HostedZoneId: !FindInMap [RegionMap, !Ref "AWS::Region", HostedZoneId]
-      HostedZoneName: !Sub
-        - ${domain}.
-        - domain: !Ref RootDomainName
-      Name: !Ref RootDomainName
-      Type: A
+      DomainName: !Ref RootDomainName
+      SubjectAlternativeNames:
+        - !Join ['.', [www, !Ref RootDomainName]]
+      ValidationMethod: DNS
+  Dns:
+    Type: AWS::Route53::RecordSetGroup
+    Properties:
+      HostedZoneName: !Join ['', [!Ref RootDomainName, .]]
+      RecordSets:
+        - AliasTarget:
+            DNSName: !FindInMap [RegionMap, !Ref "AWS::Region", WebsiteEndpoint]
+            HostedZoneId: !FindInMap [RegionMap, !Ref "AWS::Region", HostedZoneId]
+          Name: !Ref RootStorage
+          Type: A
+        - AliasTarget:
+            DNSName: !FindInMap [RegionMap, !Ref "AWS::Region", WebsiteEndpoint]
+            HostedZoneId: !FindInMap [RegionMap, !Ref "AWS::Region", HostedZoneId]
+          Name: !Ref WwwStorage
+          Type: A
+  RootCdn:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Aliases:
+          - !Ref RootStorage
+        DefaultCacheBehaviour:
+          AllowedMethods:
+            - GET
+            - HEAD
+          Compress: true
+          ForwardedValues:
+            Cookies:
+              Forward: none
+            QueryString: "false"
+          TargetOriginId: RootOrigin
+          ViewerProtocolPolicy: redirect-to-https
+        DefaultRootObject: index.html
+        Enabled: "true"
+        Origins:
+          - DomainName: !Select [2, !Split ["/", !GetAtt RootStorage.WebsiteURL]]
+            Id: RootOrigin
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+        PriceClass: PriceClass_200
+        ViewerCertificate:
+          AcmCertificateArn: !Ref Certificate
+          SslSupportMethod: sni-only
   RootStorage:
     Type: AWS::S3::Bucket
     Properties:
@@ -29,17 +68,34 @@ Resources:
       WebsiteConfiguration:
         ErrorDocument: 404.html
         IndexDocument: index.html
-  WwwDns:
-    Type: AWS::Route53::RecordSet
+  WwwCdn:
+    Type: AWS::CloudFront::Distribution
     Properties:
-      AliasTarget:
-        DNSName: !FindInMap [RegionMap, !Ref "AWS::Region", WebsiteEndpoint]
-        HostedZoneId: !FindInMap [RegionMap, !Ref "AWS::Region", HostedZoneId]
-      HostedZoneName: !Sub
-        - ${domain}.
-        - domain: !Ref RootDomainName
-      Name: !Ref WwwStorage
-      Type: A
+      DistributionConfig:
+        Aliases:
+          - !Ref WwwStorage
+        DefaultCacheBehaviour:
+          AllowedMethods:
+            - GET
+            - HEAD
+          Compress: true
+          ForwardedValues:
+            Cookies:
+              Forward: none
+            QueryString: "false"
+          TargetOriginId: WwwOrigin
+          ViewerProtocolPolicy: redirect-to-https
+        DefaultRootObject: index.html
+        Enabled: "true"
+        Origins:
+          - DomainName: !Select [2, !Split ["/", !GetAtt WwwStorage.WebsiteURL]]
+            Id: WwwOrigin
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+        PriceClass: PriceClass_200
+        ViewerCertificate:
+          AcmCertificateArn: !Ref Certificate
+          SslSupportMethod: sni-only
   WwwStorage:
     Type: AWS::S3::Bucket
     Properties:

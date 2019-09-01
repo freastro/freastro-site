@@ -1,17 +1,18 @@
 title: Freastro Networks
-email: greg@freastro.net
-description: >-
-  Write an awesome description for your new site here. You can edit this
-  line in _config.yml. It will appear in your document head meta (for
-  Google search results) and in your feed.xml site description.
+author: Gregory Hart
+description: We design apps for organizing your data and simplifying common tasks.
 url: "https://freastro.net"
 
 markdown: kramdown
 plugins:
   - jekyll-seo-tag
 
+collections:
+  - products
+
 exclude:
   - CloudFormation.yaml
   - freastro-site.iml
+  - Gemfile*
   - LICENSE
   - README.md
